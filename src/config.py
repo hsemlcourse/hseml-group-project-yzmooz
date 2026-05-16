@@ -12,6 +12,9 @@ RAW_SAMPLE_SUBMISSION_PATH = "data/raw/sample_submission.csv"
 CP1_EXPERIMENTS_PATH = "report/cp1_experiments.csv"
 CP1_MODEL_PATH = "models/cp1_best_model.joblib"
 
+CP2_EXPERIMENTS_PATH = "report/cp2_experiments.csv"
+CP2_MODEL_PATH = "models/cp2_best_model.joblib"
+
 
 def ensure_raw_data_exists() -> None:
     required_files = [

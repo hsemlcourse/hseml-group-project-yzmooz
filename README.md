@@ -5,24 +5,20 @@
 Студент: Сенчуков Егор Дмитриевич  
 Группа: 237
 
+Чекпоинт: CP2
+
 ## Описание проекта
 
-Цель проекта: построить модель бинарной классификации, которая по данным о клиенте,
-товаре и заказе предсказывает, будет ли товар возвращен покупателем.
+Цель проекта - построить модель бинарной классификации, которая по данным о
+клиенте, товаре и заказе предсказывает, будет ли товар возвращён покупателем.
 
-- Задача: бинарная классификация
-- Таргет: `returned`
-- Основная метрика: `ROC-AUC`
-- Датасет: [E-Commerce Dataset](https://www.kaggle.com/datasets/hakdevelopment/e-commerce-dataset)
+- Задача: бинарная классификация.
+- Таргет: `returned`.
+- Основная метрика: `ROC-AUC`.
+- Датасет: [E-Commerce Dataset](https://www.kaggle.com/datasets/hakdevelopment/e-commerce-dataset).
 
-Для CP1 в проекте реализованы:
-
-- первичный EDA и описание данных;
-- очистка и feature engineering;
-- воспроизводимый train/val/test split;
-- baseline-модель без feature engineering;
-- несколько первых моделей для сравнения;
-- сохранение подготовленных данных, таблицы экспериментов и лучшей модели.
+В CP2 добавлены системный перебор гиперпараметров и Docker/Docker Compose для
+воспроизводимого запуска.
 
 ## Структура репозитория
 
@@ -32,9 +28,9 @@
 │   ├── raw
 │   │   ├── .gitkeep
 │   │   └── README.md
-│   ├── processed
-│   │   ├── .gitkeep
-│   │   └── README.md
+│   └── processed
+│       ├── .gitkeep
+│       └── README.md
 ├── models
 │   ├── .gitkeep
 │   └── README.md
@@ -43,15 +39,20 @@
 │   └── 2_baseline.ipynb
 ├── report
 │   ├── cp1_experiments.csv
+│   ├── cp2_experiments.csv
 │   └── report.md
 ├── src
 │   ├── config.py
 │   ├── modeling.py
 │   ├── prepare_data.py
 │   ├── preprocessing.py
-│   └── train_cp1.py
+│   ├── train_cp1.py
+│   └── train_cp2.py
 ├── tests
+│   ├── conftest.py
 │   └── test_pipeline.py
+├── Dockerfile
+├── docker-compose.yml
 ├── pyproject.toml
 ├── requirements.txt
 └── README.md
@@ -85,19 +86,19 @@
 В данных не обнаружено пропусков и полных дублей, но есть невалидные значения
 в нескольких числовых признаках. Они обрабатываются в коде, а не игнорируются.
 
-## Что делается в preprocessing
+Код подготовки данных находится в `src/preprocessing.py` и `src/prepare_data.py`.
+В preprocessing:
 
-В [`src/preprocessing.py`](src/preprocessing.py):
-
-- создаются флаги невалидных значений;
+- создаются флаги невалидных значений `invalid_*`;
 - числовые аномалии клипуются до допустимых диапазонов;
-- добавляются новые признаки:
-  `price_after_discount`, `discount_amount`, `views_per_minute`,
-  `high_past_return_rate`, `has_discount`.
+- добавляются признаки `price_after_discount`, `discount_amount`,
+  `views_per_minute`, `high_past_return_rate`, `has_discount`;
+- используется stratified train/validation/test split с `random_state = 42`.
 
-После preprocessing число модельных признаков увеличивается с `14` до `25`.
+После feature engineering число модельных признаков увеличивается с `14` до
+`25`.
 
-## Воспроизводимый запуск
+## Локальный запуск
 
 ```bash
 python -m venv .venv
@@ -109,46 +110,79 @@ pip install -r requirements.txt
 # и положить файлы train.csv, test.csv, sample_submission.csv в data/raw/
 
 python src\prepare_data.py
-python src\train_cp1.py
+python src\train_cp2.py
 python -m pytest -q
 python -m ruff check src tests
 ```
 
-Что получится после запуска:
+После запуска создаются:
 
-- `data/processed/*.csv` с готовыми сплитами;
-- `report/cp1_experiments.csv` с метриками экспериментов;
-- `models/cp1_best_model.joblib` с лучшей моделью CP1.
+- `data/processed/train_processed.csv`
+- `data/processed/val_processed.csv`
+- `data/processed/test_processed.csv`
+- `data/processed/kaggle_test_processed.csv`
+- `report/cp2_experiments.csv`
+- `models/cp2_best_model.joblib`
 
-Если сырых CSV нет, скрипты завершатся с понятной ошибкой и подскажут, какие файлы
-нужно добавить.
+## Docker
 
-Во всех сплитах и моделях используется `random_state = 42`.
+Проверить конфигурацию:
 
-## Результаты CP1
+```bash
+docker compose config
+```
 
-Валидационные результаты:
+Запустить CP2-обучение:
 
-| Модель                         | ROC-AUC | PR-AUC |     F1 | Precision | Recall | Accuracy |
+```bash
+docker compose run --rm cp2
+```
+
+Запустить тесты и линтер:
+
+```bash
+docker compose run --rm checks
+```
+
+Docker-образ строится из `python:3.11-slim`. Директории `data/`, `models/` и
+`report/` подключаются как volume, поэтому локальные данные и результаты
+сохраняются вне контейнера.
+
+## Эксперименты CP2
+
+В CP2 baseline оставлен как reference, а основные модели обучаются с grid search
+по гиперпараметрам через `ParameterGrid`.
+
+| Лучшая модель семейства        | ROC-AUC | PR-AUC |     F1 | Precision | Recall | Accuracy |
 |--------------------------------|--------:|-------:|-------:|----------:|-------:|---------:|
-| `random_forest_depth12`        |  0.5915 | 0.5581 | 0.5454 |    0.5391 | 0.5519 |   0.5634 |
-| `logistic_regression_features` |  0.5875 | 0.5557 | 0.5500 |    0.5360 | 0.5647 |   0.5614 |
+| `random_forest_grid_08`        |  0.5922 | 0.5594 | 0.4705 |    0.5618 | 0.4047 |   0.5677 |
+| `logistic_regression_grid_02`  |  0.5875 | 0.5557 | 0.5500 |    0.5360 | 0.5647 |   0.5614 |
+| `extra_trees_grid_05`          |  0.5868 | 0.5535 | 0.4751 |    0.5575 | 0.4139 |   0.5659 |
 | `logistic_regression_baseline` |  0.5866 | 0.5550 | 0.5499 |    0.5372 | 0.5632 |   0.5624 |
-| `decision_tree_depth6`         |  0.5747 | 0.5375 | 0.5683 |    0.5199 | 0.6267 |   0.5481 |
-| `dummy_most_frequent`          |  0.5000 | 0.4746 | 0.0000 |    0.0000 | 0.0000 |   0.5254 |
+| `decision_tree_grid_04`        |  0.5755 | 0.5403 | 0.4900 |    0.5414 | 0.4475 |   0.5579 |
 
-Лучшая модель на CP1: `random_forest_depth12`.
+Полная таблица всех `39` validation-запусков и финальной test-оценки лежит в
+`report/cp2_experiments.csv`.
 
-Результат на внутреннем test split:
+Лучшая модель CP2 по validation `ROC-AUC`:
 
-- `ROC-AUC = 0.5888`
-- `PR-AUC = 0.5597`
-- `F1 = 0.5419`
-- `Accuracy = 0.5591`
+- `random_forest_grid_08`
+- `max_depth = 12`
+- `min_samples_leaf = 100`
+- `n_estimators = 200`
+
+Финальная test-оценка лучшей модели:
+
+- `ROC-AUC = 0.5922`
+- `PR-AUC = 0.5615`
+- `F1 = 0.4722`
+- `Precision = 0.5644`
+- `Recall = 0.4059`
+- `Accuracy = 0.5694`
 
 ## Полезные ссылки
 
-- Отчёт: [`report/report.md`](report/report.md)
-- Таблица экспериментов: [`report/cp1_experiments.csv`](report/cp1_experiments.csv)
-- EDA: [`notebooks/01_eda.ipynb`](notebooks/01_eda.ipynb)
-- Baseline notebook: [`notebooks/2_baseline.ipynb`](notebooks/2_baseline.ipynb)
+- Отчёт: `report/report.md`
+- CP2-таблица экспериментов: `report/cp2_experiments.csv`
+- EDA: `notebooks/01_eda.ipynb`
+- Baseline notebook: `notebooks/2_baseline.ipynb`

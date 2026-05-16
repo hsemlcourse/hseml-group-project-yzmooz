@@ -1,0 +1,16 @@
+services:
+  cp2:
+    build: .
+    image: hseml-product-return-cp2:latest
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+      - ./report:/app/report
+    command: python src/train_cp2.py
+
+  checks:
+    build: .
+    image: hseml-product-return-cp2:latest
+    volumes:
+      - .:/app
+    command: sh -c "python -m pytest -q && python -m ruff check src tests"

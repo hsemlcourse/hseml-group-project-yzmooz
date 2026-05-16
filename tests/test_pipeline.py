@@ -1,9 +1,11 @@
 import pandas as pd
 from sklearn.dummy import DummyClassifier
+from sklearn.model_selection import ParameterGrid
 
 from src.modeling import evaluate_model
 from src.preprocessing import preprocess_features
 from src.train_cp1 import build_preprocessor
+from src.train_cp2 import cp2_search_spaces
 
 
 def test_preprocess_features_clips_invalid_values_and_adds_features() -> None:
@@ -95,3 +97,18 @@ def test_evaluate_model_returns_expected_metric_keys() -> None:
         "recall",
         "accuracy",
     }
+
+
+def test_cp2_search_spaces_cover_required_hyperparameter_grids() -> None:
+    search_spaces = cp2_search_spaces()
+
+    families = {space["family"] for space in search_spaces}
+    total_runs = sum(len(ParameterGrid(space["grid"])) for space in search_spaces)
+
+    assert families == {
+        "logistic_regression",
+        "decision_tree",
+        "random_forest",
+        "extra_trees",
+    }
+    assert total_runs == 38
