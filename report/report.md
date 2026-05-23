@@ -284,9 +284,10 @@ docker compose run --rm checks
   
 - Скриншот Streamlit UI:
 ![Streamlit UI](screenshots/streamlit_ui.png)
+
 - Ссылка на видео демонстрации: 
 
-
+https://drive.google.com/file/d/1piZtbLT3E_u6-S9LHNR5lPI4MuGZm-_k/view?usp=sharing
 
 ## 8. Заключение и выводы
 
