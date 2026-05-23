@@ -2,10 +2,11 @@
 
 # ML Project - Prediction Of Product Return
 
-Студент: Сенчуков Егор Дмитриевич  
+Студент: Сенчуков Егор Дмитриевич
+
 Группа: 237
 
-Чекпоинт: CP2
+Чекпоинт: CP3
 
 ## Описание проекта
 
@@ -17,8 +18,11 @@
 - Основная метрика: `ROC-AUC`.
 - Датасет: [E-Commerce Dataset](https://www.kaggle.com/datasets/hakdevelopment/e-commerce-dataset).
 
-В CP2 добавлены системный перебор гиперпараметров и Docker/Docker Compose для
-воспроизводимого запуска.
+В CP3 добавлен локальный деплой:
+
+- FastAPI API для запросов к модели;
+- Streamlit-интерфейс для ручного ввода признаков;
+- обновлённый финальный отчёт в `report/report.md`.
 
 ## Структура репозитория
 
@@ -26,30 +30,32 @@
 .
 ├── data
 │   ├── raw
-│   │   ├── .gitkeep
-│   │   └── README.md
 │   └── processed
-│       ├── .gitkeep
-│       └── README.md
 ├── models
-│   ├── .gitkeep
+│   ├── cp2_best_model.joblib
 │   └── README.md
 ├── notebooks
 │   ├── 01_eda.ipynb
 │   └── 2_baseline.ipynb
 ├── report
+│   ├── screenshots
+│   │   ├── streamlit_ui.png
+│   │   └── swagger_ui.png
 │   ├── cp1_experiments.csv
 │   ├── cp2_experiments.csv
 │   └── report.md
 ├── src
+│   ├── api.py
 │   ├── config.py
 │   ├── modeling.py
 │   ├── prepare_data.py
 │   ├── preprocessing.py
+│   ├── streamlit_app.py
 │   ├── train_cp1.py
 │   └── train_cp2.py
 ├── tests
 │   ├── conftest.py
+│   ├── test_api.py
 │   └── test_pipeline.py
 ├── Dockerfile
 ├── docker-compose.yml
@@ -57,6 +63,9 @@
 ├── requirements.txt
 └── README.md
 ```
+
+Сырые данные не коммитятся. Финальная модель `models/cp2_best_model.joblib`
+коммитится для CP3, чтобы API и Streamlit запускались без переобучения.
 
 ## Данные
 
@@ -69,45 +78,15 @@
 Файл `test.csv` содержит `50000` строк и используется только как внешний тест Kaggle
 без таргета.
 
-Сырые данные не коммитятся в репозиторий, поэтому перед запуском их нужно положить в
-`data/raw/`.
+`train.csv` содержит `200000` строк и `16` колонок: `14` исходных признаков,
+`order_id` и таргет `returned`.
 
-Ожидаемые файлы:
-
-- `data/raw/train.csv`
-- `data/raw/test.csv`
-- `data/raw/sample_submission.csv`
-
-Распределение классов в `train.csv`:
-
-- `returned = 0`: `105081` наблюдений, `52.54%`
-- `returned = 1`: `94919` наблюдений, `47.46%`
-
-В данных не обнаружено пропусков и полных дублей, но есть невалидные значения
-в нескольких числовых признаках. Они обрабатываются в коде, а не игнорируются.
-
-Код подготовки данных находится в `src/preprocessing.py` и `src/prepare_data.py`.
-В preprocessing:
-
-- создаются флаги невалидных значений `invalid_*`;
-- числовые аномалии клипуются до допустимых диапазонов;
-- добавляются признаки `price_after_discount`, `discount_amount`,
-  `views_per_minute`, `high_past_return_rate`, `has_discount`;
-- используется stratified train/validation/test split с `random_state = 42`.
-
-После feature engineering число модельных признаков увеличивается с `14` до
-`25`.
-
-## Локальный запуск
+## Локальный запуск ML-пайплайна
 
 ```bash
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
-
-# скачать датасет с Kaggle:
-# https://www.kaggle.com/datasets/hakdevelopment/e-commerce-dataset
-# и положить файлы train.csv, test.csv, sample_submission.csv в data/raw/
 
 python src\prepare_data.py
 python src\train_cp2.py
@@ -115,14 +94,40 @@ python -m pytest -q
 python -m ruff check src tests
 ```
 
-После запуска создаются:
+## Запуск API
 
-- `data/processed/train_processed.csv`
-- `data/processed/val_processed.csv`
-- `data/processed/test_processed.csv`
-- `data/processed/kaggle_test_processed.csv`
-- `report/cp2_experiments.csv`
-- `models/cp2_best_model.joblib`
+```bash
+uvicorn src.api:app --reload
+```
+
+После запуска:
+
+- healthcheck: http://localhost:8000/health
+- документация Swagger: http://localhost:8000/docs
+
+Пример запроса:
+
+```bash
+curl -X POST http://localhost:8000/predict ^
+  -H "Content-Type: application/json" ^
+  -d "{\"customer_age\":25,\"product_price\":11.67,\"discount_percent\":43.56,\"product_rating\":1.93,\"past_purchase_count\":8,\"past_return_rate\":0.33,\"delivery_delay_days\":0.0,\"session_length_minutes\":3.27,\"num_product_views\":26,\"device_type\":\"tablet\",\"product_category\":\"sports\",\"shipping_method\":\"express\",\"payment_method\":\"paypal\",\"used_coupon\":1}"
+```
+
+Ответ содержит:
+
+- `prediction`: `0` или `1`;
+- `returned_probability`: вероятность возврата;
+- `threshold`: порог классификации.
+
+## Запуск Streamlit
+
+В отдельном терминале, когда API уже запущен:
+
+```bash
+streamlit run src/streamlit_app.py
+```
+
+Интерфейс доступен на http://localhost:8501.
 
 ## Docker
 
@@ -132,10 +137,16 @@ python -m ruff check src tests
 docker compose config
 ```
 
-Запустить CP2-обучение:
+Запустить API:
 
 ```bash
-docker compose run --rm cp2
+docker compose up api
+```
+
+Запустить Streamlit UI:
+
+```bash
+docker compose up ui
 ```
 
 Запустить тесты и линтер:
@@ -144,45 +155,24 @@ docker compose run --rm cp2
 docker compose run --rm checks
 ```
 
-Docker-образ строится из `python:3.11-slim`. Директории `data/`, `models/` и
-`report/` подключаются как volume, поэтому локальные данные и результаты
-сохраняются вне контейнера.
+## Результаты модели
 
-## Эксперименты CP2
-
-В CP2 baseline оставлен как reference, а основные модели обучаются с grid search
-по гиперпараметрам через `ParameterGrid`.
-
-| Лучшая модель семейства        | ROC-AUC | PR-AUC |     F1 | Precision | Recall | Accuracy |
-|--------------------------------|--------:|-------:|-------:|----------:|-------:|---------:|
-| `random_forest_grid_08`        |  0.5922 | 0.5594 | 0.4705 |    0.5618 | 0.4047 |   0.5677 |
-| `logistic_regression_grid_02`  |  0.5875 | 0.5557 | 0.5500 |    0.5360 | 0.5647 |   0.5614 |
-| `extra_trees_grid_05`          |  0.5868 | 0.5535 | 0.4751 |    0.5575 | 0.4139 |   0.5659 |
-| `logistic_regression_baseline` |  0.5866 | 0.5550 | 0.5499 |    0.5372 | 0.5632 |   0.5624 |
-| `decision_tree_grid_04`        |  0.5755 | 0.5403 | 0.4900 |    0.5414 | 0.4475 |   0.5579 |
-
-Полная таблица всех `39` validation-запусков и финальной test-оценки лежит в
-`report/cp2_experiments.csv`.
-
-Лучшая модель CP2 по validation `ROC-AUC`:
+Лучшая модель по validation `ROC-AUC`:
 
 - `random_forest_grid_08`
 - `max_depth = 12`
 - `min_samples_leaf = 100`
 - `n_estimators = 200`
 
-Финальная test-оценка лучшей модели:
+Test-метрики:
 
-- `ROC-AUC = 0.5922`
-- `PR-AUC = 0.5615`
-- `F1 = 0.4722`
-- `Precision = 0.5644`
-- `Recall = 0.4059`
-- `Accuracy = 0.5694`
+| ROC-AUC | PR-AUC |     F1 | Precision | Recall | Accuracy |
+|--------:|-------:|-------:|----------:|-------:|---------:|
+|  0.5922 | 0.5615 | 0.4722 |    0.5644 | 0.4059 |   0.5694 |
 
-## Полезные ссылки
+Полная таблица экспериментов лежит в `report/cp2_experiments.csv`.
 
-- Отчёт: `report/report.md`
-- CP2-таблица экспериментов: `report/cp2_experiments.csv`
-- EDA: `notebooks/01_eda.ipynb`
-- Baseline notebook: `notebooks/2_baseline.ipynb`
+## Отчёт
+
+Финальный Markdown-отчёт: `report/report.md`.
+

@@ -13,6 +13,7 @@ htmlcov
 data/raw/*.csv
 data/processed/*.csv
 models/*.joblib
+!models/cp2_best_model.joblib
 models/*.pkl
 models/*.h5
 models/*.pt
